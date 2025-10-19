@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Matricial Funcional</title>
+    <style>
+        /* CSS: Estilos Rojo, Blanco y Negro */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            padding: 20px; 
+            background-color: #1a1a1a; 
+            color: #f4f4f4; 
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container { 
+            width: 95%;
+            max-width: 1000px; 
+            background: #2c2c2c; 
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(231, 76, 60, 0.4); 
+            border: 1px solid #e74c3c; 
+        }
+        h1 { 
+            text-align: center; 
+            color: #e74c3c; 
+            border-bottom: 3px solid #e74c3c;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+        h2 { 
+            color: #f4f4f4; 
+            margin-top: 30px;
+            padding-bottom: 5px;
+        }
+        .matrix-input-group { display: flex; gap: 20px; margin-bottom: 25px; }
+        .matrix-box { flex: 1; padding: 15px; background-color: #383838; border-radius: 8px; border: 1px solid #e74c3c; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #e74c3c; }
+        textarea { 
+            width: 100%; height: 100px; padding: 10px; box-sizing: border-box; resize: vertical; 
+            border: 1px solid #555; border-radius: 5px; font-family: monospace; font-size: 14px; 
+            background-color: #1a1a1a; color: #ffffff; 
+        }
+        .operations { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 25px; }
+        button { 
+            padding: 12px; cursor: pointer; background-color: #e74c3c; color: #ffffff;
+            border: none; border-radius: 5px; font-weight: bold; transition: background-color 0.2s, transform 0.1s;
+        }
+        button:hover { background-color: #c0392b; transform: translateY(-1px); }
+        #log {
+            padding: 15px; border-left: 5px solid #f1c40f; background-color: #383838;
+            color: #f1c40f; margin-bottom: 20px; border-radius: 5px; font-weight: bold;
+        }
+        #resultado { 
+            border: 2px solid #e74c3c; padding: 20px; margin-top: 10px; white-space: pre-wrap; 
+            background-color: #1a1a1a; color: #3498db; border-radius: 8px; font-family: monospace; 
+            font-size: 16px; min-height: 80px; line-height: 1.5; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔴 CALCULADORA MATRICIAL EXACTA ✖️</h1>
+
+        <h2>1. Definición de Matrices</h2>
+        <div class="matrix-input-group">
+            <div class="matrix-box">
+                <label for="matrixA">Matriz A / Extendida [A|B] (Prueba SEL: 1 2 11 / 3 4 23)</label>
+                <textarea id="matrixA">1 2 11
+3 4 23</textarea>
+            </div>
+            <div class="matrix-box">
+                <label for="matrixB">Matriz B (Para operaciones binarias)</label>
+                <textarea id="matrixB">5 6
+7 8</textarea>
+            </div>
+        </div>
+
+        <h2>2. Operaciones y Sistemas de Ecuaciones</h2>
+        <div class="operations">
+            <button onclick="performOperation('suma')">➕ A + B</button>
+            <button onclick="performOperation('resta')">➖ A - B</button>
+            <button onclick="performOperation('multiplicacionMatricial')">✖️ A * B</button>
+            <button onclick="performOperation('multiplicacionEscalar')">k * A (k=2)</button>
+            <button onclick="performOperation('transpuesta')">ᵀ Transpuesta A</button>
+            <button onclick="performOperation('determinante')">det(A)</button>
+            <button onclick="performOperation('inversaGauss')">A⁻¹ (Procedimiento)</button>
+            <button onclick="performOperation('selGauss')">SEL: Gauss-Jordan (Procedimiento)</button>
+        </div>
+        
+        <div id="log">Mensajes del Sistema: Ingrese sus matrices y seleccione una operación.</div>
+
+        <h2>3. Resultado del Cálculo</h2>
+        <pre id="resultado">El resultado final del cálculo aparecerá aquí.</pre>
+
+    </div>
+
+    <script>
+        
+        // --- UTILIDADES ---
+
+        function parseMatrix(text) {
+            const rows = text.trim().split('\n');
+            const matrix = [];
+            let cols = -1;
+            for (let i = 0; i < rows.length; i++) {
+                const rowText = rows[i].trim();
+                if (rowText === "") continue;
+                // Soporta espacios o comas como separadores
+                const row = rowText.split(/[\s,]+/).map(Number);
+                if (cols === -1) { cols = row.length; } else if (row.length !== cols) { throw new Error(`Fila ${i + 1} debe tener ${cols} elementos.`); }
+                if (row.some(isNaN)) { throw new Error("La matriz contiene valores que no son números."); }
+                matrix.push(row);
+            }
+            if (matrix.length === 0) throw new Error("La matriz está vacía.");
+            return matrix;
+        }
+
+        /** LA FUNCIÓN CLAVE PARA LA EXACTITUD. */
+        function formatNumberExact(val) {
+             return parseFloat(val.toFixed(10));
+        }
+        
+        function matrixToString(matrix) {
+            return matrix.map(row => row.map(formatNumberExact).join('\t')).join('\n');
+        }
+
+        function createZeroMatrix(rows, cols) {
+            return Array(rows).fill(0).map(() => Array(cols).fill(0));
+        }
+
+        // --- OPERACIONES BÁSICAS ---
+
+        function operateElementWise(A, B, operation) {
+             if (A.length !== B.length || A[0].length !== B[0].length) { throw new Error("Las matrices deben tener las mismas dimensiones."); }
+             const R = createZeroMatrix(A.length, A[0].length);
+             for (let i = 0; i < A.length; i++) {
+                 for (let j = 0; j < A[0].length; j++) {
+                     // Lógica condicional para suma o resta
+                     R[i][j] = (operation === 'suma') ? A[i][j] + B[i][j] : A[i][j] - B[i][j];
+                 }
+             }
+             return R;
+         }
+ 
+         function multiplyMatrices(A, B) {
+             const rowsA = A.length;
+             const colsA = A[0].length;
+             const rowsB = B.length;
+             const colsB = B[0].length;
+             if (colsA !== rowsB) { throw new Error("Columnas de A deben ser igual a filas de B."); }
+             const R = createZeroMatrix(rowsA, colsB);
+             for (let i = 0; i < rowsA; i++) {
+                 for (let j = 0; j < colsB; j++) {
+                     for (let k = 0; k < colsA; k++) {
+                         // Producto punto
+                         R[i][j] += A[i][k] * B[k][j];
+                     }
+                 }
+             }
+             return R;
+         }
+ 
+         function transpose(A) {
+             const rows = A.length;
+             const cols = A[0].length;
+             const R = createZeroMatrix(cols, rows);
+             for (let i = 0; i < rows; i++) {
+                 for (let j = 0; j < cols; j++) {
+                     R[j][i] = A[i][j];
+                 }
+             }
+             return R;
+         }
+ 
+         function determinant(A) {
+             const n = A.length;
+             if (n !== A[0].length) { throw new Error("Determinante solo para matrices cuadradas."); }
+             if (n === 2) return A[0][0] * A[1][1] - A[0][1] * A[1][0]; 
+             if (n === 3) {
+                 // Regla de Sarrus
+                 return A[0][0] * A[1][1] * A[2][2] + A[0][1] * A[1][2] * A[2][0] + A[0][2] * A[1][0] * A[2][1] -
+                        (A[0][2] * A[1][1] * A[2][0] + A[0][0] * A[1][2] * A[2][1] + A[0][1] * A[1][0] * A[2][2]);
+             }
+             throw new Error("Determinante solo implementado hasta 3x3.");
+         }
+         
+        // --- ALGORITMO GAUSS-JORDAN ---
+
+        function gaussJordan(M, isSEL = false) {
+            // Clonar la matriz para trabajar con ella
+            const A = M.map(row => [...row]); 
+            const n = isSEL ? (A.length < A[0].length ? A.length : A[0].length - 1) : A.length;
+            let procedure = []; 
+
+            if (n !== A.length && !isSEL) { throw new Error("La matriz debe ser cuadrada para la inversa."); }
+            
+            let augmented = [];
+            if (isSEL) { 
+                augmented = A; 
+            } else { 
+                const I = createZeroMatrix(n, n);
+                for (let i = 0; i < n; i++) I[i][i] = 1;
+                augmented = A.map((row, i) => row.concat(I[i]));
+            }
+            const colsAug = augmented[0].length;
+            
+            procedure.push({ description: "Matriz Original (o Ampliada)", matrix: augmented.map(row => row.slice()) });
+
+            // Bucle principal de filas
+            for (let i = 0; i < n; i++) { 
+                // 1. Pivotear (intercambiar por el valor absoluto más grande)
+                let pivotRow = i;
+                for (let k = i + 1; k < augmented.length; k++) {
+                    if (Math.abs(augmented[k][i]) > Math.abs(augmented[pivotRow][i])) { pivotRow = k; }
+                }
+                
+                if (pivotRow !== i) {
+                     [augmented[i], augmented[pivotRow]] = [augmented[pivotRow], augmented[i]];
+                     procedure.push({ description: `[Fase ${i + 1}] Pivotear: Intercambio Fila ${i + 1} <-> Fila ${pivotRow + 1}`, matrix: augmented.map(row => row.slice()) });
+                }
+                
+                const pivot = augmented[i][i];
+                if (Math.abs(pivot) < 1e-9) { 
+                    throw new Error("La matriz es singular o el sistema no tiene solución única."); 
+                }
+
+                // 2. Normalizar: Fila i = Fila i / pivot (Hacer el pivote 1)
+                for (let j = i; j < colsAug; j++) { augmented[i][j] /= pivot; }
+                procedure.push({ description: `[Fase ${i + 1}] Normalizar: Fila ${i + 1} = Fila ${i + 1} / ${formatNumberExact(pivot)}`, matrix: augmented.map(row => row.slice()) });
+
+                // 3. Eliminar: (Hacer ceros arriba y abajo)
+                for (let k = 0; k < augmented.length; k++) {
+                    if (k !== i) {
+                        const factor = augmented[k][i];
+                        if (Math.abs(factor) > 1e-9) { 
+                            for (let j = i; j < colsAug; j++) { augmented[k][j] -= factor * augmented[i][j]; }
+                            procedure.push({ description: `[Fase ${i + 1}] Eliminar: Fila ${k + 1} = Fila ${k + 1} - ${formatNumberExact(factor)} * Fila ${i + 1}`, matrix: augmented.map(row => row.slice()) });
+                        }
+                    }
+                }
+            }
+            
+            // Extracción del resultado
+            const finalResult = isSEL ? augmented.map(row => row[colsAug - 1]) : augmented.map(row => row.slice(n));
+
+            return { final: finalResult, procedure: procedure };
+        }
+
+        // --- FUNCIÓN DE CONTROL ---
+
+        function performOperation(operationType) {
+            const output = document.getElementById('resultado');
+            const log = document.getElementById('log');
+            let A, B, R, msg = "";
+            try {
+                // Se asegura de leer las matrices
+                const A_text = document.getElementById('matrixA').value;
+                A = parseMatrix(A_text);
+                
+                if (operationType === 'inversaGauss' || operationType === 'selGauss') {
+                    // Operaciones que requieren el procedimiento Gauss-Jordan
+                    const isSEL = operationType === 'selGauss';
+                    const resultObject = gaussJordan(A, isSEL); 
+                    
+                    let resultText = "--- PROCEDIMIENTO PASO A PASO (Gauss-Jordan) ---\n\n";
+                    resultObject.procedure.forEach((stepData) => {
+                        resultText += `${stepData.description}:\n`;
+                        resultText += matrixToString(stepData.matrix) + "\n\n"; 
+                    });
+                    
+                    if (isSEL) {
+                        msg = "Resolución de SEL";
+                        resultText += "\n--- VECTOR SOLUCIÓN FINAL X ---\n";
+                        resultObject.final.forEach((val, index) => { resultText += `x${index + 1} = ${formatNumberExact(val)}\n`; });
+                    } else {
+                        msg = "Cálculo de Inversa A⁻¹";
+                        resultText += "\n--- MATRIZ INVERSA FINAL A⁻¹ ---\n";
+                        resultText += matrixToString(resultObject.final) + "\n";
+                    }
+
+                    output.textContent = resultText;
+                    log.textContent = `${msg} completada. Se muestra el procedimiento detallado.`;
+                    return;
+
+                } else if (['suma', 'resta', 'multiplicacionMatricial'].includes(operationType)) {
+                    // Operaciones binarias
+                    const B_text = document.getElementById('matrixB').value;
+                    B = parseMatrix(B_text);
+                    if (operationType === 'suma') { R = operateElementWise(A, B, 'suma'); msg = "Suma (A + B)"; } 
+                    else if (operationType === 'resta') { R = operateElementWise(A, B, 'resta'); msg = "Resta (A - B)"; } 
+                    else if (operationType === 'multiplicacionMatricial') { R = multiplyMatrices(A, B); msg = "Multiplicación Matricial (A * B)"; }
+                } else if (operationType === 'multiplicacionEscalar') {
+                    // Operación Unaria: Escalar
+                    const k = 2; R = A.map(row => row.map(val => val * k)); msg = `Multiplicación por Escalar (k=${k})`;
+                } else if (operationType === 'transpuesta') {
+                    // Operación Unaria: Transpuesta
+                    R = transpose(A); msg = "Transpuesta A (Aᵀ)";
+                } else if (operationType === 'determinante') {
+                    // Operación Unaria: Determinante
+                    const detVal = determinant(A);
+                    output.textContent = `Det(A) = ${formatNumberExact(detVal)}`; log.textContent = `Cálculo de Determinante completado.`; return;
+                }
+                
+                // Mostrar resultado final para operaciones básicas
+                output.textContent = `[Resultado de ${msg}]\n${matrixToString(R)}`;
+                log.textContent = `Operación '${msg}' completada exitosamente.`;
+
+            } catch (e) {
+                // Manejo de cualquier error
+                output.textContent = `ERROR: ${e.message}`;
+                log.textContent = "⚠️ ¡Error en el cálculo! Revise formato, dimensiones, o si la matriz es singular.";
+            }
+        }
+    </script>
+</body>
+</html>
